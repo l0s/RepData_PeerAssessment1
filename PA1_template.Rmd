@@ -82,9 +82,6 @@ df$day_type <-
           'weekend', 'weekday' )
 average_steps_per_interval <-
   aggregate( steps~interval + day_type, data=df, FUN=mean )
-average_steps_per_interval <-
-  average_steps_per_interval[ order( average_steps_per_interval$interval,
-                                     average_steps_per_interval$day_type ), ]
 library( lattice )
 xyplot( steps~interval | day_type, data=df, layout=c( 1, 2 ), type='l',
         xlab='Interval', ylab='Number of steps' )
