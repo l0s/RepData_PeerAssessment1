@@ -1,20 +1,91 @@
+```{r setoptions, echo=FALSE}
+opts_chunk$set( echo=TRUE )
+```
+
 # Reproducible Research: Peer Assessment 1
 
 
 ## Loading and preprocessing the data
 
-
+```{r}
+unzip( 'activity.zip' )
+df <- read.csv( 'activity.csv' )
+```
 
 ## What is mean total number of steps taken per day?
 
-
+```{r}
+total_steps_per_day <-
+  aggregate( steps ~ date, data=df, FUN=sum, na.omit=TRUE )
+hist( total_steps_per_day$steps )
+mean( total_steps_per_day$steps )
+median( total_steps_per_day$steps )
+```
 
 ## What is the average daily activity pattern?
 
+```{r}
+steps_per_interval <-
+  aggregate( steps ~ interval, data=df, FUN=mean, na.omit=TRUE )
+plot( steps ~ interval, data=steps_per_interval, type='l' )
+```
 
+5-minute interval with the maximum average number of steps per day:
+
+```{r}
+steps_per_interval[ steps_per_interval$steps==max( steps_per_interval$steps ),
+                    'interval' ]
+```
 
 ## Imputing missing values
 
+Total number of missing values in the dataset:
 
+```{r}
+nrow( df[ is.na( df$steps ), ] )
+```
+
+Dataset with missing values filled in:
+
+```{r}
+intervals <- unique( df$interval )
+mean_steps_per_interval <-
+  data.frame( interval = intervals,
+              steps =
+                sapply( intervals,
+                        function( interval ) { round( mean( df[ df$interval==interval,
+                                                                'steps' ],
+                                                            na.rm=TRUE ) ) } ) )
+
+df[ is.na( df$steps ), 'steps' ] <-
+  merge( df[ is.na( df$steps ), ][ 'interval' ], mean_steps_per_interval,
+         by.x='interval', by.y='interval' )$steps
+
+```
+
+Effects of imputation:
+
+```{r}
+total_steps_per_day <-
+  aggregate( steps ~ date, data=df, FUN=sum )
+hist( total_steps_per_day$steps )
+mean( total_steps_per_day$steps )
+median( total_steps_per_day$steps )
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r}
+df$day_of_week <- factor( weekdays( as.Date( df$date ) ) )
+df$day_type <-
+  ifelse( df$day_of_week == 'Saturday' | df$day_of_week == 'Sunday',
+          'weekend', 'weekday' )
+average_steps_per_interval <-
+  aggregate( steps~interval + day_type, data=df, FUN=mean )
+average_steps_per_interval <-
+  average_steps_per_interval[ order( average_steps_per_interval$interval,
+                                     average_steps_per_interval$day_type ), ]
+library( lattice )
+xyplot( steps~interval | day_type, data=df, layout=c( 1, 2 ), type='l',
+        xlab='Interval', ylab='Number of steps' )
+```
