@@ -1,11 +1,12 @@
-`r opts_chunk$set( echo=TRUE )`
+
 
 # Reproducible Research: Peer Assessment 1
 
 
 ## Loading and preprocessing the data
 
-```{r}
+
+```r
 if( !file.exists( 'activity.csv' ) )
 {
   if( !file.exists( 'activity.zip' ) )
@@ -30,15 +31,32 @@ number_of_days <- length( unique( activity$date ) )
 ## What is mean total number of steps taken per day?
 
 The most common number of steps taken in a day is 10,000 to 15,000. This occurs
-on more than 25 days (~`r round( 25 / number_of_days * 100)`% of the time).
+on more than 25 days (~41% of the time).
 
-```{r}
+
+```r
 total_steps_per_day <-
   aggregate( steps ~ date, data=activity, FUN=sum, na.omit=TRUE )
 hist( total_steps_per_day$steps, xlab='Total steps taken in a day',
       main='Total number of steps taken each day' )
+```
+
+![plot of chunk unnamed-chunk-2](figure/unnamed-chunk-2.png) 
+
+```r
 mean( total_steps_per_day$steps )
+```
+
+```
+## [1] 10767
+```
+
+```r
 median( total_steps_per_day$steps )
+```
+
+```
+## [1] 10766
 ```
 
 ## What is the average daily activity pattern?
@@ -46,30 +64,44 @@ median( total_steps_per_day$steps )
 Although there are spikes throughout the day, the largest spike in activity
 occurs between intervals 500 and 1000.
 
-```{r}
+
+```r
 steps_per_interval <-
   aggregate( steps ~ interval, data=activity, FUN=mean, na.omit=TRUE )
 plot( steps ~ interval, data=steps_per_interval, type='l' )
 ```
 
+![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3.png) 
+
 5-minute interval with the maximum average number of steps per day:
 
-```{r}
+
+```r
 steps_per_interval[ steps_per_interval$steps==max( steps_per_interval$steps ),
                     'interval' ]
+```
+
+```
+## [1] 835
 ```
 
 ## Imputing missing values
 
 1) Total number of missing values in the dataset:
 
-```{r}
+
+```r
 nrow( activity[ is.na( activity$steps ), ] )
+```
+
+```
+## [1] 2304
 ```
 
 2) Strategy for filling in all of the missing values in the dataset:
 
-```{r}
+
+```r
 intervals <- unique( activity$interval )
 impute <- function( interval )
 {
@@ -87,13 +119,13 @@ imputed_steps_per_interval <-
 3) New dataset that is equal to the original dataset but with the missing data
 filled in:
 
-```{r}
+
+```r
 imputed <- activity
 imputed[ is.na( activity$steps ), 'steps' ] <-
   merge( imputed[ is.na( imputed$steps ), ][ 'interval' ],
          imputed_steps_per_interval,
          by.x='interval', by.y='interval' )$steps
-
 ```
 
 4) Impact of imputation:
@@ -101,17 +133,34 @@ imputed[ is.na( activity$steps ), 'steps' ] <-
 After imputation, the average and median total steps taken in a day both go down.
 In addition, it is now much more common to see between 0 and 5,000 steps taken
 in a day. With the original data set, there were only 5 days on which this
-occured (~`r round( 5 / number_of_days * 100 )`%). However, after imputation,
-this happens between 10 and 15 times (~`r round( 10 / number_of_days * 100 )` -
-`r round( 15 / number_of_days * 100 )`%).
+occured (~8%). However, after imputation,
+this happens between 10 and 15 times (~16 -
+25%).
 
-```{r}
+
+```r
 total_steps_per_day <-
   aggregate( steps ~ date, data=imputed, FUN=sum )
 hist( total_steps_per_day$steps, xlab='Total steps taken in a day',
       main='Total number of steps taken each day' )
+```
+
+![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8.png) 
+
+```r
 mean( total_steps_per_day$steps )
+```
+
+```
+## [1] 9504
+```
+
+```r
 median( total_steps_per_day$steps )
+```
+
+```
+## [1] 10395
 ```
 
 ## Are there differences in activity patterns between weekdays and weekends?
@@ -121,10 +170,13 @@ are notable differences in the patterns. Activity starts earlier on weekdays. In
 addition, weekends see a spike after interval 1500 that is not as pronounced on
 weekdays.
 
-```{r}
+
+```r
 average_steps_per_interval <-
   aggregate( steps~interval + day_type, data=activity, FUN=mean )
 library( lattice )
 xyplot( steps~interval | day_type, data=activity, layout=c( 1, 2 ), type='l',
         xlab='Interval', ylab='Number of steps' )
 ```
+
+![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9.png) 
