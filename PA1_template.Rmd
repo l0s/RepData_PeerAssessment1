@@ -25,6 +25,15 @@ activity$day_type <-
                     | activity$day_of_week == 'Sunday',
                   'weekend', 'weekday' ) )
 number_of_days <- length( unique( activity$date ) )
+last_interval <- max( activity$interval )
+noonish <- last_interval / 2
+activity$meridiem <-
+  factor( ifelse( activity$interval > noonish, 'afternoon', 'morning' ) )
+quarter_day <- last_interval / 4
+activity$light <-
+  factor( ifelse( activity$interval > last_interval - quarter_day
+                    | activity$interval < quarter_day, 
+                  'night ', 'day' ) )
 ```
 
 ## What is mean total number of steps taken per day?
@@ -61,27 +70,211 @@ steps_per_interval[ steps_per_interval$steps==max( steps_per_interval$steps ),
 
 ## Imputing missing values
 
-1) Total number of missing values in the dataset:
+### 1. Total number of missing values in the dataset:
 
 ```{r}
 nrow( activity[ is.na( activity$steps ), ] )
 ```
 
-2) Strategy for filling in all of the missing values in the dataset:
+### 2. Strategy for filling in all of the missing values in the dataset:
+
+#### 2a. Engineer some features
+```{r}
+aggregate_column_value <- function ( column_value, aggregator, column_name )
+{
+  aggregator( activity[ activity[ column_name ] == column_value, 'steps' ],
+              na.rm=TRUE )
+}
+
+# interval-level aggregations
+intervals <- unique( activity$interval )
+mean_steps_per_interval <-
+  data.frame( interval=intervals,
+              mean_for_interval=sapply( intervals, aggregate_column_value, mean,
+                                        'interval' ) )
+activity <-
+  merge( activity, mean_steps_per_interval, by.x='interval', by.y='interval' )
+
+med_steps_per_interval <-
+  data.frame( interval=intervals,
+              med_for_interval=sapply( intervals, aggregate_column_value,
+                                       median, 'interval' ) )
+activity <-
+  merge( activity, med_steps_per_interval, by.x='interval', by.y='interval' )
+
+# day-of-week-level aggregations
+days_of_week <- levels( activity$day_of_week )
+mean_steps_per_day_of_week <-
+  data.frame( day_of_week=days_of_week,
+              mean_for_day_of_week=sapply( days_of_week,
+                                           aggregate_column_value, mean,
+                                           'day_of_week' ) )
+activity <-
+  merge( activity, mean_steps_per_day_of_week, by.x='day_of_week',
+         by.y='day_of_week' )
+med_steps_per_day_of_week <-
+  data.frame( day_of_week=days_of_week,
+              med_for_day_of_week=sapply( days_of_week, aggregate_column_value,
+                                          median, 'day_of_week' ) )
+activity <-
+  merge( activity, med_steps_per_day_of_week, by.x='day_of_week',
+         by.y='day_of_week' )
+
+# day type aggregations
+day_types <- levels( activity$day_type )
+mean_steps_per_day_type <-
+  data.frame( day_type=day_types,
+              mean_for_day_type=sapply( day_types, aggregate_column_value, mean,
+                                        'day_type' ) )
+activity <-
+  merge( activity, mean_steps_per_day_type, by.x='day_type',
+         by.y='day_type' )
+med_steps_per_day_type <-
+  data.frame( day_type=day_types,
+              med_for_day_type=sapply( day_types, aggregate_column_value,
+                                       median, 'day_type' ) )
+activity <-
+  merge( activity, med_steps_per_day_type, by.x='day_type',
+         by.y='day_type' )
+
+# meridiem aggregations
+meridiems <- levels( activity$meridiem )
+mean_steps_per_meridiem <-
+  data.frame( meridiem=meridiems,
+              mean_for_meridiem=sapply( meridiems, aggregate_column_value, mean,
+                                        'meridiem' ) )
+activity <-
+  merge( activity, mean_steps_per_meridiem, by.x='meridiem',
+         by.y='meridiem' )
+med_steps_per_meridiem <-
+  data.frame( meridiem=meridiems,
+              med_for_meridiem=sapply( meridiems, aggregate_column_value,
+                                       median, 'meridiem' ) )
+activity <-
+  merge( activity, med_steps_per_meridiem, by.x='meridiem',
+         by.y='meridiem' )
+
+# light-level aggregations
+light_levels <- levels( activity$light )
+mean_steps_per_light <-
+  data.frame( light=light_levels,
+              mean_for_light=sapply( light_levels, aggregate_column_value, mean,
+                                     'light' ) )
+activity <-
+  merge( activity, mean_steps_per_light, by.x='light',
+         by.y='light' )
+med_steps_per_light <-
+  data.frame( light=light_levels,
+              med_for_light=sapply( light_levels, aggregate_column_value,
+                                    median, 'light' ) )
+activity <-
+  merge( activity, med_steps_per_light, by.x='light',
+         by.y='light' )
+```
+
+#### 2b. Slice up the data
 
 ```{r}
-intervals <- unique( activity$interval )
-impute <- function( interval )
-{
-  # median should be less sensitive to outliers
-  # round the value to be consistent with the intervals for which data is
-  # provided
-  round( median( activity[ activity$interval==interval, 'steps' ],
-                 na.rm=TRUE ) )
-}
-imputed_steps_per_interval <-
-  data.frame( interval = intervals,
-              steps = sapply( intervals, impute ) )
+set.seed( 11235 )
+rows_with_step_values <- activity[ !is.na( activity$steps ), ]
+indices <- 1:nrow( rows_with_step_values )
+# hold out set
+validation_indices <- sample( indices, trunc( length( indices ) * 0.10 ) )
+validation <- rows_with_step_values[ validation_indices, ]
+non_validation <- rows_with_step_values[ -validation_indices, ]
+indices <- 1:nrow( non_validation )
+test_indices <- sample( indices, trunc( length( indices ) * 0.10 ) )
+test <- non_validation[ test_indices, ]
+training <- non_validation[ -test_indices, ]
+```
+
+####  2c. Effectiveness of engineered features
+
+```{r}
+summary( test$steps - test$mean_for_interval )
+summary( test$steps - test$med_for_interval )
+summary( test$steps - test$mean_for_day_of_week )
+summary( test$steps - test$med_for_day_of_week )
+summary( test$steps - test$mean_for_day_type )
+summary( test$steps - test$med_for_day_type )
+summary( test$steps - test$mean_for_meridiem )
+summary( test$steps - test$med_for_meridiem )
+summary( test$steps - test$mean_for_light )
+summary( test$steps - test$med_for_light )
+```
+
+#### 2d) Model
+
+##### 2di) Linear Model
+
+```{r}
+# Train model
+# linear_model <-
+#   lm( steps ~
+#         mean_for_interval + med_for_interval + mean_for_day_of_week +
+#         med_for_day_of_week + mean_for_meridiem + med_for_meridiem +
+#         mean_for_light + med_for_light + day_of_week + day_type + interval +
+#         meridiem + light,
+#       training )
+linear_model <-
+  lm( steps ~
+        mean_for_interval + med_for_interval + mean_for_day_of_week +
+        med_for_day_of_week + mean_for_meridiem + med_for_meridiem +
+        mean_for_light + med_for_light,
+      training )
+par( mfrow=c( 2, 2 ) )
+plot( linear_model )
+summary( linear_model, correlation=TRUE )
+```
+
+RMSE for lm
+
+```{r}
+summary( training$steps - predict.lm( linear_model ) )
+summary( test$steps - predict.lm( linear_model, test ) )
+summary( validation$steps - predict.lm( linear_model, validation ) )
+```
+
+##### 2dii) Random Forest
+
+```{r cache=TRUE}
+library( randomForest )
+# Train model
+rf <-
+  randomForest( steps ~
+                  mean_for_interval + med_for_interval + mean_for_day_of_week +
+                  med_for_day_of_week + mean_for_meridiem + med_for_meridiem +
+                  mean_for_light + med_for_light + day_of_week + day_type +
+                  interval + meridiem + light,
+                training, importance=TRUE, ntree=512 )
+print( rf )
+importance( rf )
+```
+```{r}
+summary( training$steps - predict( rf, training ) )
+summary( test$steps - predict( rf, test ) )
+summary( validation$steps - predict( rf, validation ) )
+```
+
+##### 2diii) Gradient Boosting Machine
+
+```{r}
+library( gbm )
+gbm_model <-
+  gbm( steps ~
+         mean_for_interval + med_for_interval + mean_for_day_of_week +
+         med_for_day_of_week + mean_for_meridiem + med_for_meridiem +
+         mean_for_light + med_for_light + day_of_week + day_type + interval +
+         meridiem + light,
+       data=training,
+       cv.folds=10 )
+ideal_iteration_count <- gbm.perf( gbm_model, method='OOB' )
+summary( training$steps -
+           predict( gbm_model, training, ideal_iteration_count ) )
+summary( test$steps -
+           predict( gbm_model, test, ideal_iteration_count ) )
+summary( validation$steps -
+           predict( gbm_model, validation, ideal_iteration_count ) )
 ```
 
 3) New dataset that is equal to the original dataset but with the missing data
@@ -89,11 +282,17 @@ filled in:
 
 ```{r}
 imputed <- activity
-imputed[ is.na( activity$steps ), 'steps' ] <-
-  merge( imputed[ is.na( imputed$steps ), ][ 'interval' ],
-         imputed_steps_per_interval,
-         by.x='interval', by.y='interval' )$steps
-
+rows_to_impute <- is.na( imputed$steps )
+# Linear Model
+#imputed[ rows_to_impute, 'steps' ] <-
+#  round( predict.lm( model, imputed[ rows_to_impute, ] ) )
+# Random Forest
+#imputed[ rows_to_impute, 'steps' ] <-
+#  round( predict( rf, imputed[ rows_to_impute, ] ) )
+# Gradient Boosting Machine
+imputed[ rows_to_impute, 'steps' ] <-
+  round( predict( gbm_model, imputed[ rows_to_impute, ],
+                  ideal_iteration_count ) )
 ```
 
 4) Impact of imputation:
